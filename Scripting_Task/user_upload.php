@@ -24,50 +24,50 @@ function connectMySQL($options) {
 }
 
 // Parse command line arguments
-$options = getopt("u:p:h:", ['show_db', 'check_mytest']);
+$options = getopt("u:p:h:", ['create_table']);
 
-// Check if the 'show_db' option is provided
-if (isset($options['show_db'])) {
+if (isset($options['create_table'])) {
     // Establish MySQL connection
     $mysqli = connectMySQL($options);
 
-    // Show databases
-    $result = $mysqli->query("SHOW DATABASES");
+    // Check if the 'user_details' database exists
+    $result = $mysqli->query("SHOW DATABASES LIKE 'user_details'");
 
-    if ($result) {
-        echo "Databases:\n";
-        while ($row = $result->fetch_assoc()) {
-            echo $row['Database'] . "\n";
-        }
-    } else {
-        echo "Error: " . $mysqli->error . "\n";
+    if ($result && $result->num_rows < 0) {
+        $mysqli->query("CREATE DATABASE IF NOT EXISTS user_details");
+        echo "'user_details' database created.\n";
     }
 
-    // Close the result set
-    $result->close();
+    // Select 'user_details' database
+    $mysqli->select_db("user_details");
+
+    // Check if the 'users' table exists
+    $tableCheck = $mysqli->query("SHOW TABLES LIKE 'users'");
+
+    if ($tableCheck && $tableCheck->num_rows > 0) {
+        // 'users' table exists, drop it
+        $mysqli->query("DROP TABLE users");
+    }
+
+    // Create 'users' table
+    $createTableQuery = "CREATE TABLE users (
+    	id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    	name VARCHAR(30) NOT NULL,
+    	surname VARCHAR(30) NOT NULL,
+    	email VARCHAR(50) NOT NULL UNIQUE
+	);";
+
+    if ($mysqli->query($createTableQuery)) {
+        echo "'users' table created.\n";
+    } else {
+        echo "Error creating 'users' table: " . $mysqli->error . "\n";
+    }
 
     // Close the MySQL connection
     $mysqli->close();
-} elseif (isset($options['check_mytest'])) {
-    // Establish MySQL connection
-    $mysqli = connectMySQL($options);
-
-    // Check if the 'mytest' database exists
-    $result = $mysqli->query("SHOW DATABASES LIKE 'users'");
-
-    if ($result && $result->num_rows > 0) {
-        echo "Yes, 'users' database exists.\n";
-    } else {
-        echo "'users' database does not exist.\n";
-    }
-
-    // Close the result set
-    $result->close();
-
-    // Close the MySQL connection
-    $mysqli->close();
+    
 } else {
-    echo "Error: Please specify the action, e.g., --show_db or --check_mytest.\n";
+    echo "Error: Please specify a valid action, e.g., --create_table.\n";
     exit(1);
 }
 ?>
