@@ -24,7 +24,7 @@ function connectMySQL($options) {
 }
 
 // Parse command line arguments
-$options = getopt("u:p:h:", ['create_table']);
+$options = getopt("u:p:h:", ['create_table', 'file:']);
 
 if (isset($options['create_table'])) {
     // Establish MySQL connection
@@ -65,9 +65,39 @@ if (isset($options['create_table'])) {
 
     // Close the MySQL connection
     $mysqli->close();
-    
+
+} elseif (isset($options['file']))  {
+    // Get the file name from the command line
+    $csvFileName = $options['file'];
+
+    // Check if the file exists
+    if (!file_exists($csvFileName)) {
+        echo "Error: File does not exist.\n";
+        exit(1);
+    }
+
+    // Check if the file contains the expected columns
+    $csvFile = fopen($csvFileName, 'r');
+    $header = fgetcsv($csvFile);
+
+    // Check if the header is in the correct format
+    $expectedHeader = ['name', 'surname', 'email'];
+    $headerMatches = count($header) === count($expectedHeader) && array_map('strtolower', array_map('trim', $header)) === $expectedHeader;
+
+    if ($header === false || !$headerMatches) {
+        echo "File is not in the correct format. It should contain columns: name, surname, email.\n";
+    } else {
+        // Iterate through each row in the CSV file
+        while (($row = fgetcsv($csvFile)) !== false) {
+            // Print each row to the command line
+            echo implode(', ', $row) . "\n";
+        }
+    }
+
+    // Close the file
+    fclose($csvFile);
 } else {
-    echo "Error: Please specify a valid action, e.g., --create_table.\n";
+    echo "Error: Please specify a valid action, e.g., --create_table, --file[csv file].\n";
     exit(1);
 }
 ?>
