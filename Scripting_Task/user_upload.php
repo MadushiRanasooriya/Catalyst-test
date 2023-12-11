@@ -33,10 +33,8 @@ if (isset($options['create_table'])) {
     // Check if the 'user_details' database exists
     $result = $mysqli->query("SHOW DATABASES LIKE 'user_details'");
 
-    if ($result && $result->num_rows < 0) {
-        $mysqli->query("CREATE DATABASE IF NOT EXISTS user_details");
-        echo "'user_details' database created.\n";
-    }
+    // Create 'user_details' database if it doesn't exist
+    $mysqli->query("CREATE DATABASE IF NOT EXISTS user_details");
 
     // Select 'user_details' database
     $mysqli->select_db("user_details");
@@ -51,11 +49,11 @@ if (isset($options['create_table'])) {
 
     // Create 'users' table
     $createTableQuery = "CREATE TABLE users (
-    	id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    	name VARCHAR(30) NOT NULL,
-    	surname VARCHAR(30) NOT NULL,
-    	email VARCHAR(50) NOT NULL UNIQUE
-	);";
+    id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(30) NOT NULL,
+    surname VARCHAR(30) NOT NULL,
+    email VARCHAR(50) NOT NULL UNIQUE
+);";
 
     if ($mysqli->query($createTableQuery)) {
         echo "'users' table created.\n";
@@ -66,7 +64,8 @@ if (isset($options['create_table'])) {
     // Close the MySQL connection
     $mysqli->close();
 
-} elseif (isset($options['file']))  {
+} elseif (isset($options['file'])) {
+    
     // Get the file name from the command line
     $csvFileName = $options['file'];
 
@@ -77,25 +76,64 @@ if (isset($options['create_table'])) {
     }
 
     // Check if the file contains the expected columns
-    $csvFile = fopen($csvFileName, 'r');
-    $header = fgetcsv($csvFile);
+$csvFile = fopen($csvFileName, 'r');
+$header = fgetcsv($csvFile);
 
-    // Check if the header is in the correct format
-    $expectedHeader = ['name', 'surname', 'email'];
-    $headerMatches = count($header) === count($expectedHeader) && array_map('strtolower', array_map('trim', $header)) === $expectedHeader;
+// Check if the header is in the correct format
+$expectedHeader = ['name', 'surname', 'email'];
+$headerMatches = count($header) === count($expectedHeader) && array_map('strtolower', array_map('trim', $header)) === $expectedHeader;
 
-    if ($header === false || !$headerMatches) {
-        echo "File is not in the correct format. It should contain columns: name, surname, email.\n";
-    } else {
-        // Iterate through each row in the CSV file
-        while (($row = fgetcsv($csvFile)) !== false) {
-            // Print each row to the command line
-            echo implode(', ', $row) . "\n";
+if ($header === false || !$headerMatches) {
+    echo "File is not in the correct format. It should contain columns: name, surname, email.\n";
+} else {
+    echo "File is in the correct format. Printing rows:\n";
+
+    // Establish MySQL connection
+    $mysqli = connectMySQL($options);
+    // Select 'user_details' database
+    $mysqli->select_db("user_details");
+    // Prepare the insert statement
+    $insertStatement = $mysqli->prepare("INSERT INTO users (name, surname, email) VALUES (?, ?, ?)");
+    // Initialize row number
+    $rowNumber = 1;
+
+    // Iterate through each row in the CSV file
+    while (($row = fgetcsv($csvFile)) !== false) {
+        // Capitalize the first letter of 'name' and 'surname'
+        $row[0] = ucfirst(strtolower(trim($row[0]))); // Capitalize 'name'
+        $row[1] = ucfirst(strtolower(trim($row[1]))); // Capitalize 'surname'
+
+        // Convert email to lowercase
+        $row[2] = strtolower(trim($row[2]));
+
+        // Check if the email already exists in the database
+        $checkDuplicate = $mysqli->prepare("SELECT id FROM users WHERE email = ?");
+        $checkDuplicate->bind_param('s', $row[2]);
+        $checkDuplicate->execute();
+        $checkDuplicate->store_result();
+        
+
+        // Validate the email address
+    if (filter_var($row[2], FILTER_VALIDATE_EMAIL)) {
+        if ($checkDuplicate->num_rows == 0) {
+            $insertStatement->bind_param('sss', $row[0], $row[1], $row[2]);
+            $insertStatement->execute();
+        } else {
+            echo "Skipped inserting row $rowNumber: Duplicate email.\n";
         }
+    } else {
+        echo "Error: Invalid email at row $rowNumber. Skipping the row.\n";
     }
 
-    // Close the file
-    fclose($csvFile);
+        // Increment row number
+        $rowNumber++;
+    }
+    // Close the checkDuplicate statement
+    $checkDuplicate->close();
+}
+
+// Close the file
+fclose($csvFile);
 } else {
     echo "Error: Please specify a valid action, e.g., --create_table, --file[csv file].\n";
     exit(1);
