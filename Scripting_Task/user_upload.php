@@ -1,19 +1,18 @@
 <?php
 
-
-
 // Parse command line arguments
 $options = getopt("u:p:h:", ['create_table', 'file:', 'dry_run', 'help']);
 
+
 if (isset($options['help'])) {
 	if (isset($options['create_table']) || isset($options['file']) || isset($options['dry_run']) || isset($options['u']) || isset($options['p']) || isset($options['h'])) {
-		echo "INCORRECT COMMAND\nUsage: php script.php --help\n";
+		echo "INCORRECT COMMAND\nUsage: php user_upload.php --help\n\n";
 	} else {
 		showHelp();
 	}
 } elseif (isset($options['create_table'])) {
 	if (isset($options['file']) || isset($options['dry_run'])) {
-		echo "INCORRECT COMMAND\nUsage: php script.php --create_table -u [MySQL username] -p [MySQL password] -h [MySQL host] \n";
+		echo "INCORRECT COMMAND\nUsage: php user_upload.php --create_table -u [MySQL username] -p [MySQL password] -h [MySQL host] \n\n";
 	} else {
 		// Establish MySQL connection
     		$mysqli = connectMySQL($options);
@@ -25,14 +24,14 @@ if (isset($options['help'])) {
 	}
 } elseif (isset($options['file'])) {
 	if (isset($options['dry_run'])) {
-		echo "Dry run mode.\n";
+		echo "DRY RUN MODE.\n";
 		handleFile($options, true);
 		echo "MySQL table is not updated.\n";
 	}else{
 		handleFile($options, false);
 	}
 } else {
-    echo "Error: Please specify a valid action, e.g., --create_table, --file[csv file], --help.\n";
+    echo "ERROR: Please specify a valid action, e.g., --create_table, --file[csv file], --dry_run, --help.\n\n";
     exit(1);
 }
 
@@ -40,7 +39,7 @@ if (isset($options['help'])) {
 function connectMySQL($options) {
     // Check if the 'u', 'p', and 'h' options are provided
     if (!isset($options['u']) || !isset($options['p']) || !isset($options['h'])) {
-        echo "Error: Please provide username (-u), password (-p), and host (-h) options.\n";
+        echo "ERROR: Please provide username (-u), password (-p), and host (-h) options.\n\n";
         exit(1);
     }
 
@@ -48,32 +47,43 @@ function connectMySQL($options) {
     $username = $options['u'];
     $password = $options['p'];
     $host = $options['h'];
+    
+    echo "Starting MySQL connection.....\n";
 
-    // Connect to MySQL
-    $mysqli = new mysqli($host, $username, $password);
+    try {
+        // Connect to MySQL
+        $mysqli = new mysqli($host, $username, $password);
 
-    // Check the connection
-    if ($mysqli->connect_error) {
-        die("Connection failed: " . $mysqli->connect_error);
+        // Check the connection
+        if ($mysqli->connect_error) {
+            throw new mysqli_sql_exception("Connection failed: " . $mysqli->connect_error);
+        }
+
+        echo "Connected to MySQL.\n";
+        return $mysqli;
+    } catch (mysqli_sql_exception $e) {
+        // Handle the exception (e.g., log the error, display a message, etc.)
+        echo "ERROR: Unable to connect to MySQL. " . $e->getMessage() . "\n\n";
+        exit(1);
     }
 
-    return $mysqli;
 }
 
 // Function to display help information
 function showHelp() {
-    echo "Usage:\n";
-    echo "php script.php --file [csv file name] -u [MySQL username] -p [MySQL password] -h [MySQL host]\n";
-    echo "php script.php --create_table -u [MySQL username] -p [MySQL password] -h [MySQL host]\n";
-    echo "php script.php --dry_run --file [csv file name] -u [MySQL username] -p [MySQL password] -h [MySQL host]\n";
-    echo "php script.php --help\n";
     echo "\nOptions:\n";
-    echo "--file [csv file name]    Name of the CSV to be parsed\n";
-    echo "--create_table           Build the MySQL users table (no further action will be taken)\n";
-    echo "--dry_run                Run the script without inserting into the DB (other functions will be executed)\n";
-    echo "-u                       MySQL username\n";
-    echo "-p                       MySQL password\n";
-    echo "-h                       MySQL host\n";
+    echo "--file [csv file name]\tName of the CSV to be parsed\n";
+    echo "--create_table\t\tBuild the MySQL users table (no further action will be taken)\n";
+    echo "--dry_run\t\tRun the script without inserting into the DB (other functions will be executed)\n";
+    echo "-u\t\t\tMySQL username\n";
+    echo "-p\t\t\tMySQL password\n";
+    echo "-h\t\t\tMySQL host\n";
+    echo "\nUsage:\n";
+    echo "php user_upload.php --file [csv file name] -u [MySQL username] -p [MySQL password] -h [MySQL host]\n";
+    echo "php user_upload.php --create_table -u [MySQL username] -p [MySQL password] -h [MySQL host]\n";
+    echo "php user_upload.php --dry_run --file [csv file name] -u [MySQL username] -p [MySQL password] -h [MySQL host]\n";
+    echo "php user_upload.php --help\n\n";
+    
 }
 
 
@@ -107,7 +117,7 @@ function createTable($mysqli) {
     if ($mysqli->query($createTableQuery)) {
         echo "'users' table created.\n";
     } else {
-        echo "Error creating 'users' table: " . $mysqli->error . "\n";
+        echo "ERROR: Creating 'users' table unsuccessful\n\n";
     }
 }
 
@@ -118,7 +128,7 @@ function handleFile($options, $is_dry_run) {
 
     // Check if the file exists
     if (!file_exists($csvFileName)) {
-        echo "Error: File does not exist.\n";
+        echo "ERROR: File does not exist.\n\n";
         exit(1);
     }
 
@@ -131,9 +141,15 @@ function handleFile($options, $is_dry_run) {
     $headerMatches = count($header) === count($expectedHeader) && array_map('strtolower', array_map('trim', $header)) === $expectedHeader;
 
     if ($header === false || !$headerMatches) {
-        echo "File is not in the correct format. It should contain columns: name, surname, email.\n";
+        echo "ERROR: File is not in the correct format.\nIt should contain columns: name, surname, email.\n\n";
     } else {
-        echo "File is in the correct format. Inserting rows:\n";
+        echo "File is in the correct format.\n";
+        if($is_dry_run==false){
+        	echo "Start reading & inserting user data.......\n";
+        }
+        else{
+        	echo "Start reading user data.......\n";
+        }
 
         // Establish MySQL connection
         $mysqli = connectMySQL($options);
@@ -167,10 +183,10 @@ function handleFile($options, $is_dry_run) {
 		        }
 		        
                 } else {
-                    echo "Skipped inserting row $rowNumber: Duplicate email.\n";
+                    echo "WARNING: Duplicate email found. Skipped inserting row $rowNumber.\n";
                 }
             } else {
-                echo "Error: Invalid email at row $rowNumber. Skipping the row.\n";
+                echo "WARNING: Invalid email found. Skipped inserting row $rowNumber.\n";
             }
 
             // Increment row number
@@ -178,6 +194,12 @@ function handleFile($options, $is_dry_run) {
         }
         // Close the checkDuplicate statement
         $checkDuplicate->close();
+    }
+    if($is_dry_run==false){
+	echo "Finished inserting user data.\n\n";
+    }
+    else{
+    	echo "Finished reading user data.\n\n";
     }
 
     // Close the file
