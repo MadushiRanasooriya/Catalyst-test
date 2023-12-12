@@ -19,7 +19,7 @@
 	
 	
 	//function to Check if a given number is divisible by a specified divisor
-	function divide($number, $divisor) {
+	function divide($number, $divisor, $string="test") {
 		if ($number % $divisor === 0) {
 			return true;
 		} else {
